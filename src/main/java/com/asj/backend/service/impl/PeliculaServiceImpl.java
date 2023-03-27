@@ -21,7 +21,7 @@ public class PeliculaServiceImpl implements PeliculaService {
         if(repository.findById(id).isPresent()){
             return repository.findById(id).get();
         } else {
-            return null;
+           throw new RuntimeException("Pelicula no encontrada");
         }
     }
 
@@ -31,16 +31,13 @@ public class PeliculaServiceImpl implements PeliculaService {
             repository.save(pelicula);
             return pelicula;
         } else {
-           return null;
+          throw new RuntimeException("La pelicula ya se encuentra cargada");
         }
     }
 
     @Override
     public void deletePelicula(Integer id) {
         Optional<Pelicula> pelicula = repository.findById(id);
-        if(pelicula.isPresent()) {
-            repository.delete(pelicula.get());
-        }
-
+        pelicula.ifPresent(repository::delete);
     }
 }

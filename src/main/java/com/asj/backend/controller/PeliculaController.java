@@ -24,15 +24,17 @@ public class PeliculaController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getPelicula(@PathVariable Integer id) {
 
-        if (service.getPelicula(id) != null) {
+
+
+        try {
             Pelicula pelicula = service.getPelicula(id);
             response.put("success", Boolean.TRUE);
             response.put("message", "Pelicula encontrada");
             response.put("data", pelicula);
             return ResponseEntity.status(HttpStatus.FOUND).body(response);
-        } else {
+        } catch (RuntimeException ex){
             response.put("success", Boolean.FALSE);
-            response.put("message", "Pelicula no encontrada");
+            response.put("message", ex.getMessage());
             response.put("data", null);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
@@ -43,20 +45,17 @@ public class PeliculaController {
     @PostMapping
     public ResponseEntity<?> createPelicula(@RequestBody Pelicula pelicula) {
 
-        Pelicula pelicula1 = service.createPelicula(pelicula);
-
-        if(pelicula1 != null) {
+        try {
             service.createPelicula(pelicula);
             response.put("success", Boolean.TRUE);
             response.put("message", "Pelicula Creada");
             response.put("data", pelicula);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } else  {
+        } catch (RuntimeException ex){
             response.put("success", Boolean.FALSE);
-            response.put("message", "No se pudo crear la pelicula, o ya se encuentra cargada");
+            response.put("message", ex.getMessage());
             response.put("data", null);
-
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
 

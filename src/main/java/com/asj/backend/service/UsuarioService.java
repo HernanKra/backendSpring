@@ -11,8 +11,6 @@ public interface UsuarioService {
 
     Usuario getUsuario(Integer id);
 
-    Optional<Usuario> getUsuarioByUsername(String username);
-
     Usuario createUsuario(Usuario user);
 
     Usuario loginUsuario(UsuarioLoginDTO usuarioLoginDTO);

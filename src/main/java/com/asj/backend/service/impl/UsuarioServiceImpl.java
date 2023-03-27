@@ -7,10 +7,10 @@ import com.asj.backend.entity.Usuario;
 import com.asj.backend.repository.PeliculaRepository;
 import com.asj.backend.repository.UsuarioRepository;
 import com.asj.backend.service.UsuarioService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 
-import javax.swing.text.html.Option;
-import java.util.List;
 import java.util.Optional;
 
 
@@ -31,62 +31,64 @@ public class UsuarioServiceImpl implements UsuarioService {
         if(user.isPresent()) {
             return user.get();
         } else {
-          return null;
+          throw new RuntimeException(String.format("Usuario con id %s no encontrado", id));
         }
 
-    }
-
-    @Override
-    public Optional<Usuario> getUsuarioByUsername(String username) {
-        return repository.findUsuarioByUsername(username);
     }
 
     @Override
     public Usuario createUsuario(Usuario user) {
 
-        if(repository.findUsuarioByUsername(user.getUsername()).isEmpty()) {
+        Optional<Usuario> tmp = repository.findUsuarioByUsername(user.getUsername());
+        if(tmp.isEmpty()) {
             repository.save(user);
+        } else {
+            throw new RuntimeException(String.format("El username: %s no se encuentra disponible", user.getUsername()));
         }
         return user;
-
     }
 
     @Override
-    public Usuario loginUsuario(UsuarioLoginDTO usuarioLoginDTO) {
+    public Usuario loginUsuario(UsuarioLoginDTO usuarioLoginDTO) throws HttpClientErrorException {
 
-            if(repository.findUsuarioByUsername(usuarioLoginDTO.getUsername()).isPresent()) {
-                Usuario user = repository.findUsuarioByUsername(usuarioLoginDTO.getUsername()).get();
-                return user;
-            } else {
-                return null;
-            }
-
+        if(repository.findUsuarioByUsernameAndPassword(usuarioLoginDTO.getUsername(), usuarioLoginDTO.getPassword()).isPresent()) {
+            return repository.findUsuarioByUsername(usuarioLoginDTO.getUsername()).get();
+        } else {
+            throw new HttpClientErrorException(HttpStatus.FORBIDDEN, "Credenciales incorrectas");
+        }
     }
 
     @Override
     public Usuario updateUsuario(Integer id,
                                  UsuarioDTO userDTO) {
-        Usuario userUpdate;
 
+        Usuario userUpdate;
         Optional<Usuario> usuarioOptional = repository.findById(id);
 
-        if(usuarioOptional.isPresent()) {
+        if (repository.findUsuarioByUsername(userDTO.getUsername()).isPresent() && !(usuarioOptional.get().getUsername().equals(userDTO.getUsername()))) {
+            throw new RuntimeException(String.format("El username: %s no se encuentra disponible", userDTO.getUsername()));
+        } else {
             userUpdate = usuarioOptional.get();
             userUpdate.setUsername(userDTO.getUsername());
             userUpdate.setNombre(userDTO.getNombre());
             userUpdate.setApellido(userDTO.getApellido());
-            return repository.save(userUpdate);
-        } else {
-            return null;
         }
-
-
+        return repository.save(userUpdate);
     }
+
 
     @Override
     public void deleteUsuario(Integer id) {
-        Usuario userDelete = repository.getReferenceById(id);
-        repository.delete(userDelete);
+
+        Optional<Usuario> tmp = repository.findById(id);
+
+        if(tmp.isPresent()) {
+            Usuario userDelete = repository.getReferenceById(id);
+            repository.delete(userDelete);
+        } else {
+            throw new RuntimeException(String.format("Usuario con id %s no encontrado", id));
+        }
+
     }
 
     @Override
@@ -95,25 +97,20 @@ public class UsuarioServiceImpl implements UsuarioService {
 
         Optional<Usuario> user = repository.findById(id);
         Optional<Pelicula> peliculaOptional = repositoryPelicula.findById(pelicula.getIdPelicula());
+        boolean existPeliculaInUsuario = repository.existPeliculaInUsuarioWishlist(id , pelicula.getIdPelicula());
 
-        if(user.get().getPeliculas_wishlist().contains(peliculaOptional.get())) {
-            return null;
-        }
-
-        if(user.isPresent() && peliculaOptional.isPresent()) {
-            user.get().getPeliculas_wishlist().add(peliculaOptional.get());
-            repository.save(user.get());
-            return user.get();
-        } else if (user.isPresent() && peliculaOptional.isEmpty()) {
+        if(peliculaOptional.isEmpty()) {
             repositoryPelicula.save(pelicula);
-            user.get().getPeliculas_wishlist().add(pelicula);
-            repository.save(user.get());
-            return user.get();
-        } else {
-            return null;
         }
-
-    }
+        if(existPeliculaInUsuario) {
+            throw new RuntimeException(String.format("%s ya se encuentra en la lista", pelicula.getTitulo()));
+        } else {
+            Usuario usuario = user.get();
+            usuario.getPeliculas_wishlist().add(pelicula);
+            repository.save(usuario);
+            return usuario;
+        }
+       }
 
 
     @Override
@@ -122,22 +119,18 @@ public class UsuarioServiceImpl implements UsuarioService {
 
         Optional<Usuario> user = repository.findById(id);
         Optional<Pelicula> peliculaOptional = repositoryPelicula.findById(pelicula.getIdPelicula());
+        boolean existPeliculaInUsuario = repository.existPeliculaInUsuarioFavorite(id , pelicula.getIdPelicula());
 
-        if(user.get().getPeliculas_favoritas().contains(peliculaOptional.get())) {
-            return null;
-        }
-
-        if(user.isPresent() && peliculaOptional.isPresent()) {
-            user.get().getPeliculas_favoritas().add(peliculaOptional.get());
-            repository.save(user.get());
-            return user.get();
-        } else if (user.isPresent() && peliculaOptional.isEmpty()) {
+        if(peliculaOptional.isEmpty()) {
             repositoryPelicula.save(pelicula);
-            user.get().getPeliculas_favoritas().add(pelicula);
-            repository.save(user.get());
-            return user.get();
+        }
+        if(existPeliculaInUsuario) {
+            throw new RuntimeException(String.format("%s ya se encuentra en la lista", pelicula.getTitulo()));
         } else {
-            return null;
+            Usuario usuario = user.get();
+            usuario.getPeliculas_favoritas().add(pelicula);
+            repository.save(usuario);
+            return usuario;
         }
     }
 
@@ -148,7 +141,7 @@ public class UsuarioServiceImpl implements UsuarioService {
         Optional<Pelicula> peliculaOptional = repositoryPelicula.findById(idPelicula);
 
         if(peliculaOptional.isPresent() && usuarioOptional.isPresent()) {
-           boolean contienePelicula = usuarioOptional.get().getPeliculas_wishlist().contains(peliculaOptional.get());
+           boolean contienePelicula = repository.existPeliculaInUsuarioWishlist(idUsuario, idPelicula);
            if(contienePelicula) {
                Usuario user = usuarioOptional.get();
                user.getPeliculas_wishlist().remove(peliculaOptional.get());
@@ -164,7 +157,7 @@ public class UsuarioServiceImpl implements UsuarioService {
         Optional<Pelicula> peliculaOptional = repositoryPelicula.findById(idPelicula);
 
         if(usuarioOptional.isPresent() && peliculaOptional.isPresent()) {
-            boolean contienePelicula = usuarioOptional.get().getPeliculas_favoritas().contains(peliculaOptional.get());
+            boolean contienePelicula = repository.existPeliculaInUsuarioFavorite(idUsuario, idPelicula);
             if(contienePelicula) {
                 Usuario user = usuarioOptional.get();
                 user.getPeliculas_favoritas().remove(peliculaOptional.get());
@@ -172,6 +165,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             }
         }
     }
+
 
 
 }
